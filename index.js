@@ -89,16 +89,16 @@ app.post("/messages", async (req, res) => {
 			.db("batepapoUol")
 			.collection("participants")
 			.findOne({ name: user });
-		if (userExists) return res.sendStatus(422);
+		if (!userExists) return res.status(422).send({message: "User is not registered"});
 
 		await mongoClient.db("batepapoUol").collection("messages").insertOne({
 			from: user, 
 			to: body.to, 
 			text: body.text, 
 			type: body.type, 
-			time: dayjs().format('HH:MM:SS')
+			time: dayjs(Date.now()).format('HH:mm:ss')
 		});
-
+		res.status(201).send({message: "Message sent successfully"})
 	} catch(error) {
 		console.log(error)
 	}
