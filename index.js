@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import joi from "joi";
+import joi, { date } from "joi";
 import dayjs from "dayjs";
 import { MongoClient } from "mongodb";
 
@@ -58,7 +58,7 @@ app.post("/participants", async (req, res) => {
 		});
 		res.status(201).send({ message: "User created successfully" });
 	} catch (error) {
-		res.sendStatus(422);
+		res.status(422).send(error);
 	}
 });
 
@@ -112,7 +112,7 @@ app.post("/messages", async (req, res) => {
 app.get("/messages", async (req, res) => {
 	const mongoClient = await connectMongo();
 	const limit = req.query.limit;
-	const user = req.headers.user
+	const user = req.headers.user;
 
 	try {
 		const messagesList = await mongoClient
@@ -121,13 +121,13 @@ app.get("/messages", async (req, res) => {
 			.find({
 				$or: [
 					{
-						"type": "message"
+						type: "message",
 					},
 					{
-						"type": "private_message",
-						"to": user
-					}
-				]
+						type: "private_message",
+						to: user,
+					},
+				],
 			})
 			.toArray();
 
@@ -140,6 +140,35 @@ app.get("/messages", async (req, res) => {
 		res
 			.status(422)
 			.send({ message: "It wasn't possible to reach the messages list" });
+	}
+});
+
+app.post("/status", async (req, res) => {
+	const mongoClient = await connectMongo();
+	const user = req.headers.user;
+
+	const isOnline = await mongoClient
+		.db("batepapoUol")
+		.collection("participants")
+		.findOne({ name: user });
+	if (!isOnline) return res.sendStatus(404);
+
+	// update user lastStatus to Date.now()
+	try {
+		await mongoClient
+			.db("batepapoUol")
+			.collection("participants")
+			.updateOne(
+				{ name: user },
+				{
+					$set: {
+						lastStatus: Date.now(),
+					},
+				}
+			);
+		res.sendStatus(200);
+	} catch (error) {
+		res.status(422).send(error);
 	}
 });
 
