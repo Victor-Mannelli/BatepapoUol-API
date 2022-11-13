@@ -111,17 +111,36 @@ app.post("/messages", async (req, res) => {
 
 app.get("/messages", async (req, res) => {
 	const mongoClient = await connectMongo();
+	const limit = req.query.limit;
+	const user = req.headers.user
 
 	try {
-		const messageList = await mongoClient
-		.db("batepapoUol")
-		.collection("messages")
-		.find({})
-		.toArray();
-		
-		res.status(201).send(messageList);
+		const messagesList = await mongoClient
+			.db("batepapoUol")
+			.collection("messages")
+			.find({
+				$or: [
+					{
+						"type": "message"
+					},
+					{
+						"type": "private_message",
+						"to": user
+					}
+				]
+			})
+			.toArray();
+
+		if (limit) {
+			res.status(201).send([...messagesList].reverse().slice(-limit));
+		} else {
+			res.status(201).send(messagesList.reverse());
+		}
 	} catch {
-		res.status(422).send({message: "It wasn't possible to reach the messages list"})
+		res
+			.status(422)
+			.send({ message: "It wasn't possible to reach the messages list" });
 	}
 });
+
 app.listen(5000);
