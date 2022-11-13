@@ -43,7 +43,8 @@ app.post("/participants", async (req, res) => {
 
 	try {
 		const { error } = participantsScheme.validate(body);
-		if (error) return res.sendStatus(422).send(error.details.map((e) => e.message));
+		if (error)
+			return res.sendStatus(422).send(error.details.map((e) => e.message));
 
 		const isLoggedIn = await mongoClient
 			.db("batepapoUol")
@@ -55,7 +56,7 @@ app.post("/participants", async (req, res) => {
 			name: userName,
 			lastStatus: Date.now(),
 		});
-		res.sendStatus(201);
+		res.status(201).send({ message: "User created successfully" });
 	} catch (error) {
 		res.sendStatus(422);
 	}
@@ -89,18 +90,38 @@ app.post("/messages", async (req, res) => {
 			.db("batepapoUol")
 			.collection("participants")
 			.findOne({ name: user });
-		if (!userExists) return res.status(422).send({message: "User is not registered"});
+		if (!userExists)
+			return res.status(422).send({ message: "User is not registered" });
 
-		await mongoClient.db("batepapoUol").collection("messages").insertOne({
-			from: user, 
-			to: body.to, 
-			text: body.text, 
-			type: body.type, 
-			time: dayjs(Date.now()).format('HH:mm:ss')
-		});
-		res.status(201).send({message: "Message sent successfully"})
-	} catch(error) {
-		console.log(error)
+		await mongoClient
+			.db("batepapoUol")
+			.collection("messages")
+			.insertOne({
+				from: user,
+				to: body.to,
+				text: body.text,
+				type: body.type,
+				time: dayjs(Date.now()).format("HH:mm:ss"),
+			});
+		res.status(201).send({ message: "Message sent successfully" });
+	} catch (error) {
+		console.log(error);
+	}
+});
+
+app.get("/messages", async (req, res) => {
+	const mongoClient = await connectMongo();
+
+	try {
+		const messageList = await mongoClient
+		.db("batepapoUol")
+		.collection("messages")
+		.find({})
+		.toArray();
+		
+		res.status(201).send(messageList);
+	} catch {
+		res.status(422).send({message: "It wasn't possible to reach the messages list"})
 	}
 });
 app.listen(5000);
