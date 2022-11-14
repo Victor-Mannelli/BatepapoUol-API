@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import joi, { date } from "joi";
+import joi from "joi";
 import dayjs from "dayjs";
 import { MongoClient } from "mongodb";
 
@@ -39,7 +39,6 @@ async function connectMongo() {
 app.post("/participants", async (req, res) => {
 	const mongoClient = await connectMongo();
 	const body = req.body;
-	const userName = req.body.name;
 
 	try {
 		const { error } = participantsScheme.validate(body);
@@ -49,11 +48,11 @@ app.post("/participants", async (req, res) => {
 		const isLoggedIn = await mongoClient
 			.db("batepapoUol")
 			.collection("participants")
-			.findOne({ name: userName });
+			.findOne({ name: body.name });
 		if (isLoggedIn) return res.sendStatus(409);
 
 		await mongoClient.db("batepapoUol").collection("participants").insertOne({
-			name: userName,
+			name: body.name,
 			lastStatus: Date.now(),
 		});
 		res.status(201).send({ message: "User created successfully" });
@@ -105,7 +104,7 @@ app.post("/messages", async (req, res) => {
 			});
 		res.status(201).send({ message: "Message sent successfully" });
 	} catch (error) {
-		console.log(error);
+		res.send(error);
 	}
 });
 
@@ -120,6 +119,9 @@ app.get("/messages", async (req, res) => {
 			.collection("messages")
 			.find({
 				$or: [
+					{
+						type: "status"
+					},
 					{
 						type: "message",
 					},
@@ -153,7 +155,6 @@ app.post("/status", async (req, res) => {
 		.findOne({ name: user });
 	if (!isOnline) return res.sendStatus(404);
 
-	// update user lastStatus to Date.now()
 	try {
 		await mongoClient
 			.db("batepapoUol")
@@ -171,5 +172,42 @@ app.post("/status", async (req, res) => {
 		res.status(422).send(error);
 	}
 });
+
+async function cleanOfflineUsers() {
+	const mongoClient = await connectMongo();
+
+	try {
+		const allUsers = await mongoClient
+			.db("batepapoUol")
+			.collection("participants")
+			.find({})
+			.toArray();
+
+		const timeOutedUser = allUsers.filter(e =>  Date.now() - e.lastStatus > 10000)
+
+		timeOutedUser.forEach(async e => {
+			await mongoClient
+			.db("batepapoUol")
+			.collection("messages")
+			.insertOne({
+				from: e.name,
+				to: "todos",
+				text: "sai da sala...",
+				type: "status",
+				time: dayjs(Date.now()).format("HH:mm:ss")
+			});
+
+			await mongoClient
+			.db("batepapoUol")
+			.collection("participants")
+			.deleteOne({_id: e._id})
+		});
+		
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+setInterval(async () => await cleanOfflineUsers(), 15000);
 
 app.listen(5000);
